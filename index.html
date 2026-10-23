@@ -832,12 +832,20 @@ function update() {
   if (shake > 0) shake = Math.max(0, shake - DT * 40);
 }
 
+// save the current score if it beats the best; also used when a game is quit or the page is hidden
+function recordScore() {
+  const key = bestKey();
+  if (score <= (best[key] || 0)) return false;
+  best[key] = score;
+  try { localStorage.setItem('jm_best', JSON.stringify(best)); } catch (e) {}
+  return true;
+}
+
 function gameOver(reason) {
   if (state !== 'play') return;
   state = 'over'; overReason = reason; overDelay = 1;
   SFX.over();
-  const key = bestKey(), isBest = score > (best[key] || 0);
-  if (isBest) { best[key] = score; try { localStorage.setItem('jm_best', JSON.stringify(best)); } catch (e) {} }
+  const key = bestKey(), isBest = recordScore();
   document.getElementById('overTitle').textContent = reason;
   document.getElementById('overScore').textContent = score;
   document.getElementById('overBest').textContent = isBest ? '★ New best! ★' : 'Best ' + best[key];
@@ -876,6 +884,13 @@ function render() {
   ctx.save();
   rrect(ctx, BOX.l, BOX.t, BOX.r - BOX.l, BOX.b - BOX.t, 18); ctx.clip();
   ctx.drawImage(scenery, BOX.l, BOX.t, BOX.r - BOX.l, BOX.b - BOX.t);
+
+  // biggest fruit reached so far, drawn under the pieces so it never hides them
+  if (state !== 'menu') {
+    text('BIGGEST', BOX.l + 14, BOX.t + 18, 13, '#b06a2a', 'left', null);
+    drawSprite(maxLvl, 0, BOX.l + 27, BOX.t + 42, 12);
+    text(FRUITS[maxLvl].name, BOX.l + 46, BOX.t + 43, 21, '#fff', 'left');
+  }
 
   // danger line
   const warn = dangerT > 0;
@@ -1039,9 +1054,9 @@ document.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('cli
   if (act === 'start') newGame(sel.mode, sel.min * 60);
   else if (act === 'mode') { sel.mode = btn.dataset.mode; saveSel(); refreshMenu(); }
   else if (act === 'min') { sel.min = +btn.dataset.min; saveSel(); refreshMenu(); }
-  else if (act === 'restart') newGame();
+  else if (act === 'restart') { if (state === 'pause') recordScore(); newGame(); }
   else if (act === 'resume') resumeGame();
-  else if (act === 'menu') { state = 'menu'; bodies = []; showOverlay('menu'); }
+  else if (act === 'menu') { if (state === 'pause') recordScore(); state = 'menu'; bodies = []; showOverlay('menu'); }
   else if (act === 'diff') { setDifficulty(btn.dataset.diff); refreshMenu(); }
   else if (act === 'music') setMusic(!A.musicOn);
   else if (act === 'sfx') setSfx(!A.sfxOn);
@@ -1049,7 +1064,7 @@ document.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('cli
 }));
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { pauseGame(); if (A.ctx) A.ctx.suspend(); }
+  if (document.hidden) { pauseGame(); if (state === 'pause') recordScore(); if (A.ctx) A.ctx.suspend(); }
   else if (A.ctx) A.ctx.resume();
 });
 
