@@ -98,17 +98,18 @@ const GRAV = 2100, SUB = 8, DT = 1 / 60;
 const START_TIME = 60, MAX_TIME = 120;
 
 const FRUITS = [
-  { name: 'Cherry',       r: 17,  color: '#e5303c', light: '#ff9090', dark: '#9e1424', kind: 'cherry' },
-  { name: 'Strawberry',   r: 22,  color: '#f2475a', light: '#ff9ca7', dark: '#a8172e', kind: 'strawberry' },
-  { name: 'Grape',        r: 28,  color: '#8a55d8', light: '#c8a6ff', dark: '#53289a', kind: 'grape' },
+  // ordered by real-world size, smallest first
+  { name: 'Grape',        r: 17,  color: '#8a55d8', light: '#c8a6ff', dark: '#53289a', kind: 'grape' },
+  { name: 'Cherry',       r: 22,  color: '#e5303c', light: '#ff9090', dark: '#9e1424', kind: 'cherry' },
+  { name: 'Strawberry',   r: 28,  color: '#f2475a', light: '#ff9ca7', dark: '#a8172e', kind: 'strawberry' },
   { name: 'Lemon',        r: 34,  color: '#ffd93a', light: '#fff6b0', dark: '#c99a06', kind: 'lemon' },
   { name: 'Orange',       r: 41,  color: '#ff9124', light: '#ffcb8e', dark: '#c45a05', kind: 'orange' },
   { name: 'Apple',        r: 48,  color: '#7ccf3a', light: '#cdf7a0', dark: '#3f8a17', kind: 'apple' },
   { name: 'Peach',        r: 56,  color: '#ffa08a', light: '#ffdccd', dark: '#d9605a', kind: 'peach' },
-  { name: 'Coconut',      r: 64,  color: '#8a5a36', light: '#c4906a', dark: '#523018', kind: 'coconut' },
-  { name: 'Pineapple',    r: 73,  color: '#f5b928', light: '#ffe592', dark: '#b57a0a', kind: 'pineapple' },
-  { name: 'Melon',        r: 83,  color: '#b5dd6a', light: '#e8f9bc', dark: '#78a530', kind: 'melon' },
-  { name: 'Dragon Fruit', r: 94,  color: '#ec3f8c', light: '#ffa2cc', dark: '#a3155a', kind: 'dragon' },
+  { name: 'Dragon Fruit', r: 64,  color: '#ec3f8c', light: '#ffa2cc', dark: '#a3155a', kind: 'dragon' },
+  { name: 'Coconut',      r: 73,  color: '#8a5a36', light: '#c4906a', dark: '#523018', kind: 'coconut' },
+  { name: 'Pineapple',    r: 83,  color: '#f5b928', light: '#ffe592', dark: '#b57a0a', kind: 'pineapple' },
+  { name: 'Melon',        r: 94,  color: '#b5dd6a', light: '#e8f9bc', dark: '#78a530', kind: 'melon' },
   { name: 'Watermelon',   r: 106, color: '#3daa45', light: '#92e28c', dark: '#1d6a26', kind: 'watermelon' },
   { name: 'Pumpkin',      r: 119, color: '#ff8a1f', light: '#ffc47e', dark: '#b85200', kind: 'pumpkin' },
   { name: 'Golden Melon', r: 133, color: '#ffd23d', light: '#fff8c8', dark: '#c48a00', kind: 'golden' },
@@ -909,12 +910,13 @@ function drawHud() {
   // fruit chain
   const n = FRUITS.length, sp = (W - 40) / n;
   for (let i = 0; i < n; i++) {
-    const x = 20 + sp * (i + .5), y = 130;
+    // icons grow along the chain so the size order reads at a glance
+    const x = 20 + sp * (i + .5), r = 6 + 9 * i / (n - 1), y = 145 - r;
     ctx.globalAlpha = i <= maxLvl || state === 'menu' ? 1 : .28;
-    drawSprite(i, 0, x, y + 2, 11);
+    drawSprite(i, 0, x, y, r);
     if (i === maxLvl && state !== 'menu') {
       ctx.globalAlpha = 1; ctx.strokeStyle = '#ff7a2a'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x, y + 2, 15.5, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r + 4, 0, TAU); ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
