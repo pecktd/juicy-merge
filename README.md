@@ -6,6 +6,7 @@ A drop-and-merge fruit puzzle that runs in the browser. It is a single `index.ht
 - **Timed**: choose a 1, 2 or 3 minute start. Every merge adds time, and each length keeps its own best score.
 - **Endless**: no timer. The game ends if fruit stays above the dashed line for 3 seconds.
 - Merges in quick succession build combos with a score multiplier.
+- **Difficulty**: Easy, Normal or Hard. Pieces are 1×, 1.2× or 1.4× the base size, so the box fills faster on harder settings. Each difficulty keeps its own best scores.
 
 Controls: tap or drag to aim, then release to drop. On desktop you can also use the mouse, or the arrow keys and Space. P or Esc pauses.
 
