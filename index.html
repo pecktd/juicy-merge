@@ -43,6 +43,14 @@
     background: linear-gradient(#ffe7b3, #f6c977); color: #6a3d10; text-shadow: none; box-shadow: 0 calc(var(--u) * 5) 0 #c88f3a; }
   .tog:active { box-shadow: 0 calc(var(--u) * 1) 0 #c88f3a; }
   .tog.off { opacity: .55; }
+  .btn.purple { background: linear-gradient(#c38cff, #8a4fe0); box-shadow: 0 calc(var(--u) * 6) 0 #5b2aa3; }
+  .btn.purple:active { box-shadow: 0 calc(var(--u) * 2) 0 #5b2aa3; }
+  .inp { display: block; width: 100%; box-sizing: border-box; margin: calc(var(--u) * 6) 0; padding: calc(var(--u) * 10);
+    font: inherit; font-weight: 700; font-size: calc(var(--u) * 24); text-align: center; color: #5a3412; background: #fff;
+    border: calc(var(--u) * 3) solid #e8a952; border-radius: calc(var(--u) * 14); outline: none;
+    user-select: text; -webkit-user-select: text; }
+  .inp:focus { border-color: #ff7a2a; }
+  .code { font-size: calc(var(--u) * 46); font-weight: 700; letter-spacing: .15em; color: #8a4fe0; margin: calc(var(--u) * 4) 0; }
 </style>
 </head>
 <body>
@@ -73,7 +81,10 @@
           <button class="btn tog" data-act="min" data-min="3">3 min</button>
         </div>
         </div>
-        <button class="btn orange" data-act="start" style="margin-top:calc(var(--u)*18)">START<small id="bestSel">Best 0</small></button>
+        <div class="row" style="margin-top:calc(var(--u)*18)">
+          <button class="btn orange" data-act="start" style="flex:2;margin:0">START<small id="bestSel">Best 0</small></button>
+          <button class="btn purple" data-act="battle" style="flex:1;margin:0">BATTLE<small>2 players</small></button>
+        </div>
         <div class="row">
           <button class="btn tog" data-act="music" id="tMusic1">♪ Music</button>
           <button class="btn tog" data-act="sfx" id="tSfx1">🔊 Sound</button>
@@ -81,11 +92,31 @@
       </div>
     </div>
 
+    <div id="lobby" class="ov hidden">
+      <div class="card">
+        <h2>Battle</h2>
+        <p class="sub">Play a friend online. Every merge from Lemon up drops fruit into their box. Fill theirs first!</p>
+        <p class="label">Your name</p>
+        <input class="inp" id="pname" maxlength="10" autocomplete="off" spellcheck="false">
+        <div id="lobbyForm">
+          <button class="btn purple" data-act="host">Create room</button>
+          <p class="label">or join a friend's room</p>
+          <div class="row">
+            <input class="inp" id="pcode" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" style="flex:1;text-transform:uppercase">
+            <button class="btn" data-act="join" style="flex:1;margin:calc(var(--u)*6) 0">Join</button>
+          </div>
+        </div>
+        <div class="code hidden" id="roomCode"></div>
+        <p class="sub" id="lobbyMsg"></p>
+        <button class="btn tog" data-act="leave" style="width:100%">Back</button>
+      </div>
+    </div>
+
     <div id="pause" class="ov hidden">
       <div class="card">
-        <h2>Paused</h2>
+        <h2 id="pauseTitle">Paused</h2>
         <button class="btn" data-act="resume">Resume</button>
-        <button class="btn orange" data-act="restart">Restart</button>
+        <button class="btn orange" data-act="restart" id="restartBtn">Restart</button>
         <div class="row">
           <button class="btn tog" data-act="music" id="tMusic2">♪ Music</button>
           <button class="btn tog" data-act="sfx" id="tSfx2">🔊 Sound</button>
@@ -101,7 +132,7 @@
         <div class="big" id="overScore">0</div>
         <p class="sub" id="overBest">Best 0</p>
         <p class="sub" id="overBiggest">Biggest fruit: Cherry</p>
-        <button class="btn orange" data-act="restart">Play again</button>
+        <button class="btn orange" data-act="restart" id="againBtn">Play again</button>
         <button class="btn tog" data-act="menu" style="width:100%">Main menu</button>
       </div>
     </div>
@@ -139,12 +170,16 @@ const MAX_LVL = FRUITS.length - 1;
 // size multiplier for every piece; `best` keeps score keys from when easy was 1x and hard 1.4x
 const DIFFICULTY = { easy: { k: 1.2, best: '_normal' }, normal: { k: 1.4, best: '_hard' }, hard: { k: 1.6, best: '_hard16' } };
 for (const f of FRUITS) f.r0 = f.r;
-let difficulty = 'normal';
-try { const d = localStorage.getItem('jm_diff'); if (DIFFICULTY[d]) difficulty = d; } catch (e) {}
+// a battle plays at the host's difficulty without saving it, so this restores your own afterwards
+function savedDifficulty() {
+  try { const d = localStorage.getItem('jm_diff'); if (DIFFICULTY[d]) return d; } catch (e) {}
+  return 'normal';
+}
+let difficulty = savedDifficulty();
 
-function setDifficulty(d) {
+function setDifficulty(d, save = true) {
   difficulty = d;
-  try { localStorage.setItem('jm_diff', d); } catch (e) {}
+  if (save) try { localStorage.setItem('jm_diff', d); } catch (e) {}
   for (const f of FRUITS) f.r = f.r0 * DIFFICULTY[d].k;
   buildSprites();
 }
@@ -568,6 +603,8 @@ const SFX = {
   warn() { blip(520, 480, .1, 'square', .06); },
   over() { [523, 440, 349, 262].forEach((f, i) => blip(f, f * .98, .28, 'triangle', .3, i * .16)); },
   click() { blip(900, 620, .05, 'triangle', .18); },
+  send() { blip(500, 1400, .16, 'sawtooth', .08); blip(700, 1800, .12, 'triangle', .14, .05); },
+  thud() { blip(240, 90, .1, 'sine', .3); },
 };
 
 // background music: a light step sequencer
@@ -631,11 +668,13 @@ function setSfx(on) {
 
 // ---------------------------------------------------------------- game state
 let state = 'menu';          // menu | play | pause | over
-let mode = 'timed';          // timed | endless
+let mode = 'timed';          // timed | endless | battle
 let bodies = [], particles = [], popups = [];
 let startTime = 60, score = 0, timeLeft = startTime, maxLvl = 0, combo = 0, lastMerge = -9, clock = 0;
 let heldLvl = 0, nextLvl = 0, cooldown = 0, queued = false, aimX = W / 2, aiming = false;
 let dangerT = 0, shake = 0, lastTickSec = 99, overDelay = 0, overReason = '';
+// battle: fruit the opponent sent that has not landed yet, and their latest board
+let garbage = 0, garbageT = 0, countdown = 0, opp = { bodies: [], score: 0, maxLvl: 0, garbage: 0 };
 let best = { timed60: 0, timed120: 0, timed180: 0, endless: 0 };
 try { best = Object.assign(best, JSON.parse(localStorage.getItem('jm_best') || '{}')); } catch (e) {}
 if (best.timed && !best.timed60) best.timed60 = best.timed;   // scores saved before the 1/2/3 min choice
@@ -661,6 +700,8 @@ function newGame(m, secs) {
   score = 0; timeLeft = startTime; maxLvl = 0; combo = 0; lastMerge = -9;
   heldLvl = randDrop(); nextLvl = randDrop(); cooldown = 0; queued = false;
   dangerT = 0; shake = 0; lastTickSec = 99;
+  garbage = 0; garbageT = 0; countdown = mode === 'battle' ? 3 : 0;
+  opp = { bodies: [], score: 0, maxLvl: 0, garbage: 0 };
   state = 'play';
   showOverlay(null);
 }
@@ -674,7 +715,7 @@ function spawn(x, y, lvl, vx = 0, vy = 0, grow = false) {
 }
 
 function drop() {
-  if (state !== 'play') return;
+  if (state !== 'play' || countdown > 0) return;
   if (cooldown > 0 || heldLvl < 0) { queued = true; return; }   // remember taps made while reloading
   const r = FRUITS[heldLvl].r;
   const x = Math.max(BOX.l + r, Math.min(BOX.r - r, aimX));
@@ -702,9 +743,11 @@ function merge(a, o) {
     popup(W / 2, 420, 'GOLDEN BURST!', '#ffd23d', 46);
     shake = 18;
     SFX.mega();
+    attack(8);
     return;
   }
   const lvl = a.lvl + 1;
+  attack(attackFor(lvl, combo));
   spawn(x, y, lvl, vx, vy, true);
   const pts = Math.round((lvl * (lvl + 1)) * mult);
   score += pts;
@@ -725,6 +768,205 @@ function merge(a, o) {
 function addTime(s, x, y) {
   timeLeft = Math.min(startTime * 2, timeLeft + s);
   popup(x, y + 18, '+' + s + 's', '#9ff0ff', 20);
+}
+
+// ---------------------------------------------------------------- battle
+const GARBAGE_DELAY = 1.4;   // warning time before sent fruit starts falling
+const GARBAGE_MAX = 24;
+
+// fruit sent to the opponent for making `lvl`: Lemon and Orange send 1, then +1 every two levels; combos add more
+const attackFor = (lvl, combo) => lvl < 3 ? 0 : Math.floor((lvl - 1) / 2) + Math.floor((combo - 1) / 2);
+
+function attack(n) {
+  if (mode !== 'battle' || n <= 0) return;
+  // fruit on its way to you is cancelled first
+  const blocked = Math.min(garbage, n);
+  if (blocked) { garbage -= blocked; n -= blocked; popup(W / 2, 330, 'Blocked ' + blocked + '!', '#9ff0ff', 28); }
+  if (n <= 0) return;
+  send({ t: 'atk', n });
+  popup(W / 2, 300, 'Sent ' + n + ' to ' + net.oppName + '!', '#f0b0ff', 28);
+  SFX.send();
+}
+
+function receiveAttack(n) {
+  if (state !== 'play') return;
+  if (garbage === 0) garbageT = GARBAGE_DELAY;
+  garbage = Math.min(GARBAGE_MAX, garbage + n);
+  SFX.warn();
+}
+
+function updateGarbage() {
+  if (garbage <= 0 || countdown > 0) return;
+  garbageT -= DT;
+  if (garbageT > 0) return;
+  // a random small fruit from a random spot along the top, one at a time so they don't stack up
+  const lvl = Math.floor(Math.random() * 3), r = FRUITS[lvl].r;
+  const x = BOX.l + r + Math.random() * (BOX.r - BOX.l - 2 * r);
+  spawn(x, BOX.t + r + 2, lvl, (Math.random() - .5) * 3, 2);
+  burst(x, BOX.t + r, lvl, .5);
+  garbage--; garbageT = .09;
+  SFX.thud();
+}
+
+// ---------------------------------------------------------------- network
+// Peer-to-peer over WebRTC using PeerJS and its free public broker, so the game stays a static page.
+// The host's peer id is built from a short room code that the other player types in.
+const PEER_LIB = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+const PEER_PREFIX = 'juicymerge-v1-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+let net = null;   // { peer, conn, host, code, oppName, myReady, oppReady }
+let netTick = 0;
+let playerName = 'Player';
+try { playerName = localStorage.getItem('jm_name') || playerName; } catch (e) {}
+
+function loadPeer() {
+  if (window.Peer) return Promise.resolve();
+  return new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = PEER_LIB; s.onload = ok; s.onerror = () => fail(new Error('Could not load the network library. Are you online?'));
+    document.head.appendChild(s);
+  });
+}
+
+function lobbyMsg(msg, code) {
+  document.getElementById('lobbyMsg').textContent = msg;
+  const c = document.getElementById('roomCode');
+  c.textContent = code || ''; c.classList.toggle('hidden', !code);
+  document.getElementById('lobbyForm').classList.toggle('hidden', !!net);
+}
+
+function readName() {
+  playerName = document.getElementById('pname').value.trim().slice(0, 10) || 'Player';
+  try { localStorage.setItem('jm_name', playerName); } catch (e) {}
+}
+
+async function hostRoom() {
+  readName();
+  const code = Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+  net = { host: true, code, oppName: 'Opponent', myReady: false, oppReady: false };
+  lobbyMsg('Connecting…');
+  try { await loadPeer(); } catch (e) { closeNet(); lobbyMsg(e.message); return; }
+  if (!net || net.code !== code) return;   // backed out while loading
+  const peer = net.peer = new Peer(PEER_PREFIX + code);
+  peer.on('open', () => lobbyMsg('Send this code to your friend. Waiting for them to join…', code));
+  peer.on('connection', c => { if (net && !net.conn) attachConn(c); else c.close(); });
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id') { closeNet(); hostRoom(); return; }   // code already in use: pick another
+    if (net && net.conn) return;
+    closeNet(); lobbyMsg('Network error: ' + e.type);
+  });
+}
+
+async function joinRoom() {
+  readName();
+  const code = document.getElementById('pcode').value.trim().toUpperCase();
+  if (code.length !== 4) { lobbyMsg('Enter the 4-letter code from your friend.'); return; }
+  net = { host: false, code, oppName: 'Opponent', myReady: false, oppReady: false };
+  lobbyMsg('Joining room ' + code + '…');
+  try { await loadPeer(); } catch (e) { closeNet(); lobbyMsg(e.message); return; }
+  if (!net || net.code !== code) return;
+  const peer = net.peer = new Peer();
+  peer.on('open', () => attachConn(peer.connect(PEER_PREFIX + code, { reliable: true })));
+  peer.on('error', e => {
+    if (net && net.conn && net.conn.open) return;
+    closeNet();
+    lobbyMsg(e.type === 'peer-unavailable' ? 'No room with code ' + code + '. Check the code and try again.' : 'Network error: ' + e.type);
+  });
+}
+
+function attachConn(c) {
+  net.conn = c;
+  c.on('open', () => send({ t: 'hello', name: playerName }));
+  c.on('data', onNet);
+  c.on('close', onDisconnect);
+  c.on('error', onDisconnect);
+}
+
+function send(msg) {
+  if (net && net.conn && net.conn.open) try { net.conn.send(msg); } catch (e) {}
+}
+
+function startBattle(diff) {
+  net.myReady = net.oppReady = false;
+  setDifficulty(diff, false);   // both players use the host's difficulty
+  newGame('battle');
+}
+
+// host starts a match once both players are in (first join, or both asked for a rematch)
+function hostMaybeStart() {
+  if (!net || !net.host || !net.conn) return;
+  if (state === 'menu' || (net.myReady && net.oppReady)) { send({ t: 'start', diff: difficulty }); startBattle(difficulty); }
+}
+
+function onNet(m) {
+  if (!net || !m || typeof m !== 'object') return;
+  if (m.t === 'hello') {
+    net.oppName = String(m.name || 'Opponent').slice(0, 10);
+    lobbyMsg('Connected to ' + net.oppName + '!');
+    hostMaybeStart();
+  } else if (m.t === 'start' && !net.host && DIFFICULTY[m.diff]) startBattle(m.diff);
+  else if (m.t === 'atk') receiveAttack(Math.max(0, Math.min(GARBAGE_MAX, m.n | 0)));
+  else if (m.t === 's') opp = { bodies: Array.isArray(m.b) ? m.b : [], score: m.sc | 0, maxLvl: Math.min(MAX_LVL, m.mx | 0), garbage: m.g | 0 };
+  else if (m.t === 'lose') { if (state === 'play' && mode === 'battle') battleOver(true, m.why === 'quit' ? net.oppName + ' quit' : net.oppName + ' overflowed!'); }
+  else if (m.t === 'again') { net.oppReady = true; syncAgain(); hostMaybeStart(); }
+}
+
+function onDisconnect() {
+  if (!net) return;
+  const name = net.oppName;
+  closeNet();
+  if (mode === 'battle' && state === 'play') battleOver(true, name + ' left');
+  else if (mode === 'battle' && state === 'over') syncAgain(name + ' left');
+  else if (!document.getElementById('lobby').classList.contains('hidden')) lobbyMsg(name + ' left the room.');
+}
+
+function closeNet() {
+  if (!net) return;
+  const n = net; net = null;
+  try { if (n.conn) n.conn.close(); } catch (e) {}
+  // give the close a moment to reach the other side before tearing down the peer
+  setTimeout(() => { try { if (n.peer) n.peer.destroy(); } catch (e) {} }, 300);
+}
+
+function leaveBattle() {
+  if (net && state === 'play' && mode === 'battle') send({ t: 'lose', why: 'quit' });
+  closeNet();
+}
+
+function sendSnapshot(now) {
+  if (mode !== 'battle' || !net || (++netTick % 6 && !now)) return;   // 10 times a second
+  send({ t: 's', sc: score, mx: maxLvl, g: garbage,
+    b: bodies.map(b => [Math.round(b.x), Math.round(b.y), b.lvl, Math.round(b.r)]) });
+}
+
+function battleOver(won, why) {
+  if (state !== 'play') return;
+  state = 'over'; overDelay = 1;
+  if (won) SFX.mega(); else SFX.over();
+  if (!won) send({ t: 'lose', why: 'overflow' });
+  sendSnapshot(true);
+  document.getElementById('overTitle').textContent = won ? 'You win!' : 'You lose!';
+  document.getElementById('overScore').textContent = score;
+  document.getElementById('overBest').textContent = why + ' · ' + (net ? net.oppName : 'Opponent') + ' scored ' + opp.score;
+  document.getElementById('overBiggest').textContent = 'Biggest fruit: ' + FRUITS[maxLvl].name + ' (' + (maxLvl + 1) + '/' + FRUITS.length + ')';
+  syncAgain();
+}
+
+function requestRematch() {
+  if (!net || !net.conn) return;
+  net.myReady = true;
+  send({ t: 'again' });
+  syncAgain();
+  hostMaybeStart();
+}
+
+// the rematch button shows who is ready
+function syncAgain(gone) {
+  const b = document.getElementById('againBtn');
+  if (mode !== 'battle') { b.textContent = 'Play again'; b.disabled = false; return; }
+  b.disabled = !net;
+  b.textContent = !net ? (gone || 'Opponent left') : net.myReady ? 'Waiting for ' + net.oppName + '…'
+    : net.oppReady ? net.oppName + ' wants a rematch!' : 'Rematch';
 }
 
 // ---------------------------------------------------------------- physics
@@ -805,6 +1047,9 @@ function update() {
     dangerT = danger ? dangerT + DT : Math.max(0, dangerT - DT * 2);
     if (danger && Math.floor(clock * 2) !== Math.floor((clock - DT) * 2)) SFX.warn();
     if (dangerT > 3) gameOver('Overflow!');
+    if (countdown > -1) countdown -= DT;   // goes a little below zero so "GO!" can show
+    updateGarbage();
+    sendSnapshot();
 
     if (cooldown > 0) { cooldown -= DT; if (cooldown <= 0) { heldLvl = nextLvl; nextLvl = randDrop(); } }
     if (queued && cooldown <= 0) { queued = false; drop(); }
@@ -834,6 +1079,7 @@ function update() {
 
 // save the current score if it beats the best; also used when a game is quit or the page is hidden
 function recordScore() {
+  if (mode === 'battle') return false;
   const key = bestKey();
   if (score <= (best[key] || 0)) return false;
   best[key] = score;
@@ -842,9 +1088,11 @@ function recordScore() {
 }
 
 function gameOver(reason) {
+  if (mode === 'battle') { battleOver(false, 'You overflowed'); return; }
   if (state !== 'play') return;
   state = 'over'; overReason = reason; overDelay = 1;
   SFX.over();
+  syncAgain();
   const key = bestKey(), isBest = recordScore();
   document.getElementById('overTitle').textContent = reason;
   document.getElementById('overScore').textContent = score;
@@ -947,6 +1195,7 @@ function render() {
   }
   ctx.globalAlpha = 1;
 
+  if (mode === 'battle' && state !== 'menu') drawBattleOverlay();
   if (dangerT > .3 && state === 'play') text('Too full! ' + Math.max(0, 3 - dangerT).toFixed(1), W / 2, DANGER_Y + 30, 26, '#ff5a5a', 'center', '#fff');
   ctx.restore();
 
@@ -965,7 +1214,8 @@ function drawHud() {
   text('NEXT', 255, 14 + 6, 13, '#b06a2a', 'center', null);
   if (state !== 'menu') drawSprite(nextLvl, 0, 255, 60, Math.min(26, FRUITS[nextLvl].r));
 
-  if (mode === 'timed') {
+  if (mode === 'battle') drawOpponent();
+  else if (mode === 'timed') {
     const t = Math.ceil(timeLeft), low = t <= 10 && state === 'play';
     text('TIME', 395, 34, 17, '#b06a2a', 'center', null);
     const pulse = low ? 1 + .12 * Math.max(0, Math.sin(clock * 10)) : 1;
@@ -993,6 +1243,43 @@ function drawHud() {
     }
   }
   ctx.globalAlpha = 1;
+}
+
+function drawBattleOverlay() {
+  if (garbage > 0) {
+    const flash = garbageT > .3 && Math.sin(clock * 16) > 0;
+    text('▼ ' + garbage + ' incoming', BOX.r - 14, BOX.t + 30, 22, flash ? '#fff' : '#ff5a5a', 'right', flash ? '#ff5a5a' : '#fff');
+  }
+  if (countdown > 0 && state === 'play') {
+    const n = Math.ceil(countdown), k = n - countdown;
+    ctx.globalAlpha = 1 - k * .6;
+    text(String(n), W / 2, 480, 120 * (1 + k * .4), '#fff');
+    ctx.globalAlpha = 1;
+    text('vs ' + (net ? net.oppName : 'Opponent'), W / 2, 590, 34, '#ffe14a');
+  } else if (countdown > -.6 && state === 'play') {
+    text('GO!', W / 2, 480, 110, '#86da54');
+  }
+}
+
+// the opponent's box in miniature, with their name and score
+function drawOpponent() {
+  const x0 = 318, y0 = 16, k = 80 / (BOX.b - BOX.t), w = (BOX.r - BOX.l) * k, h = 80;
+  ctx.save();
+  rrect(ctx, x0, y0, w, h, 6); ctx.fillStyle = '#bfe6ff'; ctx.fill();
+  ctx.clip();
+  for (const [x, y, lvl, r] of opp.bodies) {
+    if (!FRUITS[lvl]) continue;
+    ctx.fillStyle = FRUITS[lvl].color;
+    ctx.beginPath(); ctx.arc(x0 + (x - BOX.l) * k, y0 + (y - BOX.t) * k, Math.max(1, r * k), 0, TAU); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(255,60,60,.6)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x0, y0 + (DANGER_Y - BOX.t) * k); ctx.lineTo(x0 + w, y0 + (DANGER_Y - BOX.t) * k); ctx.stroke();
+  ctx.restore();
+  rrect(ctx, x0, y0, w, h, 6); ctx.strokeStyle = '#e0a052'; ctx.lineWidth = 2; ctx.stroke();
+  const name = net ? net.oppName : 'Opponent';
+  text(name.length > 7 ? name.slice(0, 6) + '…' : name, 418, 34, 16, '#b06a2a', 'center', null);
+  text(String(opp.score), 418, 62, 24, '#fff');
+  if (opp.garbage > 0) text('▼' + opp.garbage, 418, 86, 15, '#ff5a5a', 'center', '#fff');
 }
 
 // ---------------------------------------------------------------- input
@@ -1025,14 +1312,29 @@ addEventListener('keydown', e => {
     else if (e.key === 'Escape' || e.key === 'p') pauseGame();
     aimX = Math.max(BOX.l, Math.min(BOX.r, aimX));
   } else if (state === 'pause' && (e.key === 'Escape' || e.key === 'p')) resumeGame();
+  else if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'pcode') joinRoom();
 });
 
-function pauseGame() { if (state === 'play') { state = 'pause'; aiming = false; showOverlay('pause'); SFX.click(); } }
+function pauseGame() {
+  if (state !== 'play') return;
+  aiming = false; SFX.click();
+  // a battle can't be paused: the menu opens over the running match so you can leave
+  if (mode === 'battle') { showOverlay(document.getElementById('pause').classList.contains('hidden') ? 'pause' : null); return; }
+  state = 'pause'; showOverlay('pause');
+}
 function resumeGame() { state = 'play'; showOverlay(null); }
 
 function showOverlay(id) {
-  for (const k of ['menu', 'pause', 'over']) document.getElementById(k).classList.toggle('hidden', k !== id);
+  for (const k of ['menu', 'lobby', 'pause', 'over']) document.getElementById(k).classList.toggle('hidden', k !== id);
   if (id === 'menu') refreshMenu();
+  if (id === 'pause') {
+    document.getElementById('pauseTitle').textContent = mode === 'battle' ? 'Still playing!' : 'Paused';
+    document.getElementById('restartBtn').classList.toggle('hidden', mode === 'battle');
+  }
+  if (id === 'lobby') {
+    document.getElementById('pname').value = playerName;
+    lobbyMsg('Create a room and share its code, or type a friend’s code.');
+  }
 }
 
 function refreshMenu() {
@@ -1052,11 +1354,20 @@ document.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('cli
   audioInit();
   const act = btn.dataset.act;
   if (act === 'start') newGame(sel.mode, sel.min * 60);
+  else if (act === 'battle') showOverlay('lobby');
+  else if (act === 'host') { if (!net) hostRoom(); }
+  else if (act === 'join') { if (!net) joinRoom(); }
+  else if (act === 'leave') { closeNet(); showOverlay('menu'); }
+  else if (act === 'restart' && mode === 'battle') requestRematch();
   else if (act === 'mode') { sel.mode = btn.dataset.mode; saveSel(); refreshMenu(); }
   else if (act === 'min') { sel.min = +btn.dataset.min; saveSel(); refreshMenu(); }
   else if (act === 'restart') { if (state === 'pause') recordScore(); newGame(); }
   else if (act === 'resume') resumeGame();
-  else if (act === 'menu') { if (state === 'pause') recordScore(); state = 'menu'; bodies = []; showOverlay('menu'); }
+  else if (act === 'menu') {
+    if (state === 'pause') recordScore();
+    if (mode === 'battle') { leaveBattle(); mode = sel.mode; startTime = sel.min * 60; setDifficulty(savedDifficulty()); }
+    state = 'menu'; bodies = []; showOverlay('menu');
+  }
   else if (act === 'diff') { setDifficulty(btn.dataset.diff); refreshMenu(); }
   else if (act === 'music') setMusic(!A.musicOn);
   else if (act === 'sfx') setSfx(!A.sfxOn);
@@ -1064,7 +1375,7 @@ document.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('cli
 }));
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { pauseGame(); if (state === 'pause') recordScore(); if (A.ctx) A.ctx.suspend(); }
+  if (document.hidden) { if (mode !== 'battle') pauseGame(); if (state === 'pause') recordScore(); if (A.ctx) A.ctx.suspend(); }
   else if (A.ctx) A.ctx.resume();
 });
 

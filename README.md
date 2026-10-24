@@ -8,6 +8,8 @@ A drop-and-merge fruit puzzle that runs in the browser. It is a single `index.ht
 - Merges in quick succession build combos with a score multiplier.
 - Choose a **difficulty** (Easy, Normal or Hard: pieces are 1.2×, 1.4× or 1.6× the base size), a **mode**, and for Timed a **time**, then press **START**. Each combination keeps its own best score.
 
+- **Battle** (2 players, online): one player presses **Create room** and shares the 4-letter code, and the other types it in and presses **Join**. Every merge from Lemon up drops random small fruit into the opponent's box (bigger fruit and combos send more; a Golden Burst sends 8). After a short warning the fruit falls. Your own merges cancel fruit that is still on its way to you. The first player to overflow loses. A mini view of the opponent's box sits in the HUD. Battles can't be paused, and both players play at the host's difficulty. The connection is peer-to-peer (WebRTC through the free PeerJS broker), so no server is needed, but both players must be online.
+
 Controls: tap or drag to aim, then release to drop. On desktop you can also use the mouse, or the arrow keys and Space. P or Esc pauses.
 
 Play locally by opening `index.html` in a browser.
