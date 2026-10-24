@@ -95,7 +95,7 @@
     <div id="lobby" class="ov hidden">
       <div class="card">
         <h2>Battle</h2>
-        <p class="sub">Play a friend online. Every merge from Lemon up drops fruit into their box. Fill theirs first!</p>
+        <p class="sub">Play a friend online. Every merge from Lemon up drops rocks into their box. Rocks can't merge: make a merge right next to one to smash it!</p>
         <p class="label">Your name</p>
         <input class="inp" id="pname" maxlength="10" autocomplete="off" spellcheck="false">
         <div id="lobbyForm">
@@ -468,6 +468,46 @@ function buildSprites() {
     drawFruit(g, lvl, f.r, expr);
     return { c, R };
   }));
+  const R = ROCK_ART_R * 1.15 + 6, { c, g } = makeCanvas(2 * R, 2 * R);
+  g.translate(R, R);
+  drawRock(g, ROCK_ART_R);
+  rockSprite = { c, R };
+}
+
+// battle obstacle: a grumpy lumpy stone that never merges
+const ROCK = -1, ROCK_ART_R = 60;
+let rockSprite = null;
+function drawRock(g, r) {
+  const rnd = rng(17), pts = [];
+  for (let i = 0; i < 11; i++) pts.push(r * (.93 + rnd() * .1));
+  const outline = () => {
+    g.beginPath();
+    for (let i = 0; i <= 11; i++) {
+      const a = i / 11 * TAU, k = pts[i % 11];
+      i ? g.lineTo(Math.cos(a) * k, Math.sin(a) * k) : g.moveTo(Math.cos(a) * k, Math.sin(a) * k);
+    }
+    g.closePath();
+  };
+  const gr = g.createRadialGradient(-r * .35, -r * .4, r * .08, 0, 0, r);
+  gr.addColorStop(0, '#d9dde3'); gr.addColorStop(.55, '#9aa1ab'); gr.addColorStop(1, '#5d636d');
+  g.fillStyle = gr; outline(); g.fill();
+  g.save(); outline(); g.clip();
+  dots(g, r, 41, 30, 'rgba(60,64,72,.25)', r * .04);
+  g.strokeStyle = 'rgba(55,58,66,.55)'; g.lineWidth = r * .045; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(r * .55, -r * .7); g.lineTo(r * .38, -r * .45); g.lineTo(r * .5, -r * .3); g.lineTo(r * .3, -r * .1); g.stroke();
+  g.beginPath(); g.moveTo(-r * .8, r * .45); g.lineTo(-r * .55, r * .5); g.lineTo(-r * .45, r * .7); g.stroke();
+  g.restore();
+  g.lineWidth = r * .06; g.strokeStyle = '#4a4f58'; outline(); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,.4)';
+  g.beginPath(); g.ellipse(-r * .42, -r * .46, r * .22, r * .11, -.65, 0, TAU); g.fill();
+  // grumpy face
+  const ink = '#2c2f35';
+  g.fillStyle = ink; g.strokeStyle = ink; g.lineWidth = r * .07; g.lineCap = 'round';
+  for (const sx of [-1, 1]) {
+    g.beginPath(); g.arc(sx * r * .3, r * .08, r * .09, 0, TAU); g.fill();
+    g.beginPath(); g.moveTo(sx * r * .48, -r * .16); g.lineTo(sx * r * .14, -r * .04); g.stroke();
+  }
+  g.beginPath(); g.arc(0, r * .48, r * .16, Math.PI * 1.2, Math.PI * 1.8); g.stroke();
 }
 
 function buildScenery() {
@@ -604,7 +644,8 @@ const SFX = {
   over() { [523, 440, 349, 262].forEach((f, i) => blip(f, f * .98, .28, 'triangle', .3, i * .16)); },
   click() { blip(900, 620, .05, 'triangle', .18); },
   send() { blip(500, 1400, .16, 'sawtooth', .08); blip(700, 1800, .12, 'triangle', .14, .05); },
-  thud() { blip(240, 90, .1, 'sine', .3); },
+  thud() { blip(240, 90, .1, 'sine', .3); noiseBurst(.08, .12, 400); },
+  smash() { noiseBurst(.18, .3, 900); noiseBurst(.1, .2, 2400, .03); blip(180, 60, .15, 'square', .12); },
 };
 
 // background music: a light step sequencer
@@ -728,6 +769,7 @@ function drop() {
 
 function merge(a, o) {
   a.dead = o.dead = true;
+  smashRocks(a, o);
   const x = (a.x + o.x) / 2, y = (a.y + o.y) / 2;
   const vx = ((a.x - a.px) + (o.x - o.px)) / 2, vy = ((a.y - a.py) + (o.y - o.py)) / 2;
   combo = clock - lastMerge < 1.1 ? combo + 1 : 1;
@@ -765,6 +807,20 @@ function merge(a, o) {
   if (navigator.vibrate) try { navigator.vibrate(lvl >= 8 ? 30 : 8); } catch (e) {}
 }
 
+// rocks touching either of the two merging fruit break apart
+const ROCK_REACH = 6;
+function smashRocks(a, o) {
+  for (const b of bodies) {
+    if (b.lvl !== ROCK || b.dead) continue;
+    if (Math.hypot(b.x - a.x, b.y - a.y) > b.r + a.r + ROCK_REACH && Math.hypot(b.x - o.x, b.y - o.y) > b.r + o.r + ROCK_REACH) continue;
+    b.dead = true;
+    score += 10;
+    rockBurst(b.x, b.y, b.r);
+    popup(b.x, b.y, 'Smash! +10', '#e8ecf2', 24);
+    SFX.smash();
+  }
+}
+
 function addTime(s, x, y) {
   timeLeft = Math.min(startTime * 2, timeLeft + s);
   popup(x, y + 18, '+' + s + 's', '#9ff0ff', 20);
@@ -784,7 +840,7 @@ function attack(n) {
   if (blocked) { garbage -= blocked; n -= blocked; popup(W / 2, 330, 'Blocked ' + blocked + '!', '#9ff0ff', 28); }
   if (n <= 0) return;
   send({ t: 'atk', n });
-  popup(W / 2, 300, 'Sent ' + n + ' to ' + net.oppName + '!', '#f0b0ff', 28);
+  popup(W / 2, 300, 'Sent ' + n + (n > 1 ? ' rocks' : ' rock') + ' to ' + net.oppName + '!', '#f0b0ff', 28);
   SFX.send();
 }
 
@@ -799,11 +855,11 @@ function updateGarbage() {
   if (garbage <= 0 || countdown > 0) return;
   garbageT -= DT;
   if (garbageT > 0) return;
-  // a random small fruit from a random spot along the top, one at a time so they don't stack up
-  const lvl = Math.floor(Math.random() * 3), r = FRUITS[lvl].r;
+  // a rock about Cherry to Lemon size from a random spot along the top, one at a time so they don't stack up
+  const r = FRUITS[1].r + Math.random() * (FRUITS[3].r - FRUITS[1].r);
   const x = BOX.l + r + Math.random() * (BOX.r - BOX.l - 2 * r);
-  spawn(x, BOX.t + r + 2, lvl, (Math.random() - .5) * 3, 2);
-  burst(x, BOX.t + r, lvl, .5);
+  const b = spawn(x, BOX.t + r + 2, 0, (Math.random() - .5) * 3, 2);
+  b.lvl = ROCK; b.r = b.tr = r;
   garbage--; garbageT = .09;
   SFX.thud();
 }
@@ -995,7 +1051,7 @@ function solve() {
       if (o.dead) continue;
       const dx = o.x - a.x, dy = o.y - a.y, rs = a.r + o.r, d2 = dx * dx + dy * dy;
       if (d2 >= rs * rs) continue;
-      if (a.lvl === o.lvl && state === 'play') { merge(a, o); break; }
+      if (a.lvl === o.lvl && a.lvl !== ROCK && state === 'play') { merge(a, o); break; }
       const d = Math.sqrt(d2) || .001, ov = rs - d, nx = dx / d, ny = dy / d;
       const ma = a.r * a.r, mo = o.r * o.r, t = ma + mo;
       a.x -= nx * ov * mo / t; a.y -= ny * ov * mo / t;
@@ -1024,6 +1080,15 @@ function burst(x, y, lvl, big) {
       col: '#fff7b0', size: 6 + Math.random() * 6, star: true });
   }
   particles.push({ ring: true, x, y, life: 0, max: .35, r0: FRUITS[lvl].r * .6, r1: FRUITS[lvl].r * 1.5 * big, col: f.light });
+}
+
+function rockBurst(x, y, r) {
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * TAU, sp = 140 + Math.random() * 260;
+    particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 160, life: 0, max: .5 + Math.random() * .4,
+      col: Math.random() < .5 ? '#9aa1ab' : '#5d636d', size: 3 + Math.random() * r * .14, star: false });
+  }
+  particles.push({ ring: true, x, y, life: 0, max: .3, r0: r * .6, r1: r * 1.6, col: '#e8ecf2' });
 }
 
 function popup(x, y, text, col, size) {
@@ -1122,6 +1187,13 @@ function drawSprite(lvl, expr, x, y, r, ang = 0) {
   ctx.restore();
 }
 
+function drawRockBody(b) {
+  const R = rockSprite.R * b.r / ROCK_ART_R;
+  ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.ang);
+  ctx.drawImage(rockSprite.c, -R, -R, 2 * R, 2 * R);
+  ctx.restore();
+}
+
 function render() {
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.fillStyle = '#f3d29a'; ctx.fillRect(0, 0, W, H);
@@ -1163,7 +1235,8 @@ function render() {
 
   for (const b of bodies) {
     const expr = b.happy > 0 ? 1 : (b.blink < 0 ? 2 : 0);
-    drawSprite(b.lvl, expr, b.x, b.y, b.r, b.ang);
+    if (b.lvl === ROCK) drawRockBody(b);
+    else drawSprite(b.lvl, expr, b.x, b.y, b.r, b.ang);
   }
 
   // particles
@@ -1248,7 +1321,7 @@ function drawHud() {
 function drawBattleOverlay() {
   if (garbage > 0) {
     const flash = garbageT > .3 && Math.sin(clock * 16) > 0;
-    text('▼ ' + garbage + ' incoming', BOX.r - 14, BOX.t + 30, 22, flash ? '#fff' : '#ff5a5a', 'right', flash ? '#ff5a5a' : '#fff');
+    text('▼ ' + garbage + (garbage > 1 ? ' rocks' : ' rock') + ' incoming', BOX.r - 14, BOX.t + 30, 22, flash ? '#fff' : '#ff5a5a', 'right', flash ? '#ff5a5a' : '#fff');
   }
   if (countdown > 0 && state === 'play') {
     const n = Math.ceil(countdown), k = n - countdown;
@@ -1268,8 +1341,8 @@ function drawOpponent() {
   rrect(ctx, x0, y0, w, h, 6); ctx.fillStyle = '#bfe6ff'; ctx.fill();
   ctx.clip();
   for (const [x, y, lvl, r] of opp.bodies) {
-    if (!FRUITS[lvl]) continue;
-    ctx.fillStyle = FRUITS[lvl].color;
+    if (!FRUITS[lvl] && lvl !== ROCK) continue;
+    ctx.fillStyle = lvl === ROCK ? '#7d838d' : FRUITS[lvl].color;
     ctx.beginPath(); ctx.arc(x0 + (x - BOX.l) * k, y0 + (y - BOX.t) * k, Math.max(1, r * k), 0, TAU); ctx.fill();
   }
   ctx.strokeStyle = 'rgba(255,60,60,.6)'; ctx.lineWidth = 1;
